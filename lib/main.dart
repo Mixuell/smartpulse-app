@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'dart:convert';
 
 void main() {
   runApp(SmartPulseApp());
@@ -40,6 +41,7 @@ class SmartPulseApp extends StatelessWidget {
   }
 }
 
+// ==================== LOGIN SCREEN ====================
 class LoginScreen extends StatefulWidget {
   @override
   _LoginScreenState createState() => _LoginScreenState();
@@ -48,38 +50,57 @@ class LoginScreen extends StatefulWidget {
 class _LoginScreenState extends State<LoginScreen> {
   final _usernameController = TextEditingController();
   final _passwordController = TextEditingController();
-  final _nameController = TextEditingController();
   bool _obscurePassword = true;
+  bool _isLoading = false;
 
-  final String _correctUsername = "maria";
-  final String _correctPassword = "smartpulse123";
-
-  void _login() {
+  Future<void> _login() async {
     String username = _usernameController.text.trim();
     String password = _passwordController.text.trim();
-    String name = _nameController.text.trim();
 
-    if (username.isEmpty || password.isEmpty || name.isEmpty) {
+    if (username.isEmpty || password.isEmpty) {
       _showError("Por favor completa todos los campos");
       return;
     }
 
-    if (username != _correctUsername || password != _correctPassword) {
-      _showError("Usuario o contraseña incorrectos");
+    setState(() => _isLoading = true);
+    await Future.delayed(Duration(milliseconds: 800)); // Simular carga
+
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    String? usersJson = prefs.getString('users');
+    
+    if (usersJson == null) {
+      setState(() => _isLoading = false);
+      _showError("Usuario no encontrado. ¿Deseas registrarte?");
       return;
     }
 
-    _saveName(name);
+    Map<String, dynamic> users = json.decode(usersJson);
 
+    if (!users.containsKey(username)) {
+      setState(() => _isLoading = false);
+      _showError("Usuario no existe. Por favor regístrate primero.");
+      return;
+    }
+
+    if (users[username]['password'] != password) {
+      setState(() => _isLoading = false);
+      _showError("Contraseña incorrecta");
+      return;
+    }
+
+    String userName = users[username]['name'];
+    
+    setState(() => _isLoading = false);
+    
     Navigator.pushReplacement(
       context,
-      MaterialPageRoute(builder: (context) => MainScreen(userName: name)),
+      MaterialPageRoute(
+        builder: (context) => MainScreen(
+          userName: userName,
+          username: username,
+        ),
+      ),
     );
-  }
-
-  Future<void> _saveName(String name) async {
-    SharedPreferences prefs = await SharedPreferences.getInstance();
-    await prefs.setString('user_name', name);
   }
 
   void _showError(String message) {
@@ -99,10 +120,7 @@ class _LoginScreenState extends State<LoginScreen> {
           gradient: LinearGradient(
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
-            colors: [
-              Color(0xFF1B5E20),
-              Color(0xFF2E7D32),
-            ],
+            colors: [Color(0xFF1B5E20), Color(0xFF2E7D32)],
           ),
         ),
         child: SafeArea(
@@ -112,6 +130,7 @@ class _LoginScreenState extends State<LoginScreen> {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
+                  // Logo
                   Container(
                     width: 120,
                     height: 120,
@@ -121,27 +140,21 @@ class _LoginScreenState extends State<LoginScreen> {
                       boxShadow: [
                         BoxShadow(
                           color: Colors.black26,
-                          blurRadius: 10,
-                          offset: Offset(0, 4),
+                          blurRadius: 20,
+                          offset: Offset(0, 10),
                         ),
                       ],
                     ),
                     child: Center(
-                      child: Image.asset(
-                        'assets/images/logo.png',
-                        width: 80,
-                        height: 80,
-                        errorBuilder: (context, error, stackTrace) {
-                          return Icon(
-                            Icons.vibration,
-                            size: 60,
-                            color: Color(0xFF2E7D32),
-                          );
-                        },
+                      child: Icon(
+                        Icons.vibration,
+                        size: 60,
+                        color: Color(0xFF2E7D32),
                       ),
                     ),
                   ),
                   SizedBox(height: 24),
+                  
                   Text(
                     'SmartPulse',
                     style: TextStyle(
@@ -153,12 +166,11 @@ class _LoginScreenState extends State<LoginScreen> {
                   SizedBox(height: 8),
                   Text(
                     'Inclusión Laboral Inteligente',
-                    style: TextStyle(
-                      fontSize: 16,
-                      color: Colors.white70,
-                    ),
+                    style: TextStyle(fontSize: 16, color: Colors.white70),
                   ),
                   SizedBox(height: 48),
+                  
+                  // Card de Login
                   Card(
                     elevation: 8,
                     shape: RoundedRectangleBorder(
@@ -202,39 +214,52 @@ class _LoginScreenState extends State<LoginScreen> {
                               ),
                             ),
                           ),
-                          SizedBox(height: 16),
-                          TextField(
-                            controller: _nameController,
-                            decoration: InputDecoration(
-                              labelText: 'Tu nombre',
-                              prefixIcon: Icon(Icons.badge),
-                              border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              hintText: 'Ejemplo: María',
-                            ),
-                          ),
                           SizedBox(height: 24),
+                          
+                          // Botón Login
                           SizedBox(
                             width: double.infinity,
                             child: ElevatedButton(
-                              onPressed: _login,
-                              child: Text(
-                                'INICIAR SESIÓN',
-                                style: TextStyle(fontSize: 16),
-                              ),
+                              onPressed: _isLoading ? null : _login,
+                              child: _isLoading
+                                  ? SizedBox(
+                                      height: 20,
+                                      width: 20,
+                                      child: CircularProgressIndicator(
+                                        color: Colors.white,
+                                        strokeWidth: 2,
+                                      ),
+                                    )
+                                  : Text(
+                                      'INICIAR SESIÓN',
+                                      style: TextStyle(fontSize: 16),
+                                    ),
                             ),
                           ),
                         ],
                       ),
                     ),
                   ),
+                  
                   SizedBox(height: 24),
-                  Text(
-                    'Usuario: maria | Contraseña: smartpulse123',
-                    style: TextStyle(
-                      color: Colors.white70,
-                      fontSize: 12,
+                  
+                  // Botón Registro
+                  TextButton(
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => RegisterScreen(),
+                        ),
+                      );
+                    },
+                    child: Text(
+                      '¿No tienes cuenta? Regístrate aquí',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
                   ),
                 ],
@@ -247,33 +272,363 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 }
 
+// ==================== REGISTER SCREEN ====================
+class RegisterScreen extends StatefulWidget {
+  @override
+  _RegisterScreenState createState() => _RegisterScreenState();
+}
+
+class _RegisterScreenState extends State<RegisterScreen> {
+  final _usernameController = TextEditingController();
+  final _passwordController = TextEditingController();
+  final _confirmPasswordController = TextEditingController();
+  final _nameController = TextEditingController();
+  bool _obscurePassword = true;
+  bool _obscureConfirmPassword = true;
+  bool _isLoading = false;
+
+  Future<void> _register() async {
+    String username = _usernameController.text.trim();
+    String password = _passwordController.text.trim();
+    String confirmPassword = _confirmPasswordController.text.trim();
+    String name = _nameController.text.trim();
+
+    if (username.isEmpty || password.isEmpty || name.isEmpty) {
+      _showError("Por favor completa todos los campos");
+      return;
+    }
+
+    if (password != confirmPassword) {
+      _showError("Las contraseñas no coinciden");
+      return;
+    }
+
+    if (password.length < 6) {
+      _showError("La contraseña debe tener al menos 6 caracteres");
+      return;
+    }
+
+    setState(() => _isLoading = true);
+    await Future.delayed(Duration(milliseconds: 800));
+
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    String? usersJson = prefs.getString('users');
+    Map<String, dynamic> users = usersJson != null ? json.decode(usersJson) : {};
+
+    if (users.containsKey(username)) {
+      setState(() => _isLoading = false);
+      _showError("El usuario ya existe. Intenta con otro nombre.");
+      return;
+    }
+
+    users[username] = {
+      'password': password,
+      'name': name,
+    };
+
+    await prefs.setString('users', json.encode(users));
+    
+    setState(() => _isLoading = false);
+
+    _showSuccess("¡Cuenta creada exitosamente!");
+    
+    await Future.delayed(Duration(seconds: 1));
+    Navigator.pop(context);
+  }
+
+  void _showError(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: Color(0xFFD32F2F),
+      ),
+    );
+  }
+
+  void _showSuccess(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: Color(0xFF2E7D32),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [Color(0xFF1B5E20), Color(0xFF2E7D32)],
+          ),
+        ),
+        child: SafeArea(
+          child: Center(
+            child: SingleChildScrollView(
+              padding: EdgeInsets.all(24),
+              child: Column(
+                children: [
+                  Icon(
+                    Icons.person_add,
+                    size: 80,
+                    color: Colors.white,
+                  ),
+                  SizedBox(height: 24),
+                  
+                  Text(
+                    'Crear Cuenta',
+                    style: TextStyle(
+                      fontSize: 32,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                    ),
+                  ),
+                  SizedBox(height: 8),
+                  Text(
+                    'Regístrate en SmartPulse',
+                    style: TextStyle(fontSize: 16, color: Colors.white70),
+                  ),
+                  SizedBox(height: 32),
+                  
+                  Card(
+                    elevation: 8,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    child: Padding(
+                      padding: EdgeInsets.all(24),
+                      child: Column(
+                        children: [
+                          TextField(
+                            controller: _nameController,
+                            decoration: InputDecoration(
+                              labelText: 'Nombre completo',
+                              prefixIcon: Icon(Icons.badge),
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              hintText: 'Ej: María García',
+                            ),
+                          ),
+                          SizedBox(height: 16),
+                          TextField(
+                            controller: _usernameController,
+                            decoration: InputDecoration(
+                              labelText: 'Usuario',
+                              prefixIcon: Icon(Icons.person),
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              hintText: 'Ej: maria123',
+                            ),
+                          ),
+                          SizedBox(height: 16),
+                          TextField(
+                            controller: _passwordController,
+                            obscureText: _obscurePassword,
+                            decoration: InputDecoration(
+                              labelText: 'Contraseña',
+                              prefixIcon: Icon(Icons.lock),
+                              suffixIcon: IconButton(
+                                icon: Icon(
+                                  _obscurePassword
+                                      ? Icons.visibility_off
+                                      : Icons.visibility,
+                                ),
+                                onPressed: () {
+                                  setState(() {
+                                    _obscurePassword = !_obscurePassword;
+                                  });
+                                },
+                              ),
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                            ),
+                          ),
+                          SizedBox(height: 16),
+                          TextField(
+                            controller: _confirmPasswordController,
+                            obscureText: _obscureConfirmPassword,
+                            decoration: InputDecoration(
+                              labelText: 'Confirmar contraseña',
+                              prefixIcon: Icon(Icons.lock_outline),
+                              suffixIcon: IconButton(
+                                icon: Icon(
+                                  _obscureConfirmPassword
+                                      ? Icons.visibility_off
+                                      : Icons.visibility,
+                                ),
+                                onPressed: () {
+                                  setState(() {
+                                    _obscureConfirmPassword =
+                                        !_obscureConfirmPassword;
+                                  });
+                                },
+                              ),
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                            ),
+                          ),
+                          SizedBox(height: 24),
+                          
+                          SizedBox(
+                            width: double.infinity,
+                            child: ElevatedButton(
+                              onPressed: _isLoading ? null : _register,
+                              child: _isLoading
+                                  ? SizedBox(
+                                      height: 20,
+                                      width: 20,
+                                      child: CircularProgressIndicator(
+                                        color: Colors.white,
+                                        strokeWidth: 2,
+                                      ),
+                                    )
+                                  : Text(
+                                      'REGISTRARSE',
+                                      style: TextStyle(fontSize: 16),
+                                    ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  
+                  SizedBox(height: 24),
+                  
+                  TextButton(
+                    onPressed: () => Navigator.pop(context),
+                    child: Text(
+                      '¿Ya tienes cuenta? Inicia sesión',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ==================== MAIN SCREEN ====================
 class MainScreen extends StatefulWidget {
   final String userName;
+  final String username;
 
-  MainScreen({required this.userName});
+  MainScreen({required this.userName, required this.username});
 
   @override
   _MainScreenState createState() => _MainScreenState();
 }
 
-class _MainScreenState extends State<MainScreen> {
-  List<String> alertHistory = [];
+class _MainScreenState extends State<MainScreen> with TickerProviderStateMixin {
+  List<Map<String, String>> alertHistory = [];
   int alertCount = 0;
+  bool isBluetoothConnected = false;
+  bool isListening = false;
+  String detectedText = "";
+  late AnimationController _pulseController;
+  late AnimationController _waveController;
+
+  @override
+  void initState() {
+    super.initState();
+    _pulseController = AnimationController(
+      vsync: this,
+      duration: Duration(milliseconds: 1500),
+    )..repeat(reverse: true);
+    
+    _waveController = AnimationController(
+      vsync: this,
+      duration: Duration(milliseconds: 2000),
+    )..repeat();
+  }
+
+  @override
+  void dispose() {
+    _pulseController.dispose();
+    _waveController.dispose();
+    super.dispose();
+  }
 
   void _sendAlert() {
     setState(() {
       alertCount++;
-      String time = "${DateTime.now().hour}:${DateTime.now().minute.toString().padLeft(2, '0')}";
-      alertHistory.insert(0, "$time - Alerta #$alertCount enviada");
+      String time =
+          "${DateTime.now().hour}:${DateTime.now().minute.toString().padLeft(2, '0')}";
+      alertHistory.insert(0, {
+        'time': time,
+        'text': 'Alerta #$alertCount - "${widget.userName}" detectado',
+      });
     });
 
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text('¡Alerta enviada correctamente!'),
+        content: Row(
+          children: [
+            Icon(Icons.check_circle, color: Colors.white),
+            SizedBox(width: 8),
+            Text('¡Pulsera activada! LED y motor encendidos'),
+          ],
+        ),
         backgroundColor: Color(0xFF2E7D32),
         duration: Duration(seconds: 2),
       ),
     );
+  }
+
+  void _toggleBluetooth() {
+    setState(() {
+      isBluetoothConnected = !isBluetoothConnected;
+    });
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          isBluetoothConnected
+              ? '✅ Conectado a SmartPulse ESP32'
+              : '❌ Desconectado de dispositivo',
+        ),
+        backgroundColor:
+            isBluetoothConnected ? Color(0xFF2E7D32) : Colors.orange,
+      ),
+    );
+  }
+
+  void _toggleListening() {
+    setState(() {
+      isListening = !isListening;
+      if (!isListening) {
+        detectedText = "";
+      }
+    });
+
+    if (isListening) {
+      _simulateVoiceDetection();
+    }
+  }
+
+  void _simulateVoiceDetection() async {
+    await Future.delayed(Duration(seconds: 2));
+    if (isListening && mounted) {
+      setState(() {
+        detectedText = "Hola ${widget.userName}, ¿puedes venir?";
+      });
+      _sendAlert();
+    }
   }
 
   void _logout() {
@@ -290,6 +645,12 @@ class _MainScreenState extends State<MainScreen> {
         title: Text('SmartPulse'),
         actions: [
           IconButton(
+            icon: Icon(Icons.settings),
+            onPressed: () {
+              // Configuración
+            },
+          ),
+          IconButton(
             icon: Icon(Icons.logout),
             onPressed: _logout,
           ),
@@ -300,6 +661,7 @@ class _MainScreenState extends State<MainScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
+            // Tarjeta de Bienvenida
             Card(
               color: Color(0xFF2E7D32),
               child: Padding(
@@ -321,7 +683,7 @@ class _MainScreenState extends State<MainScreen> {
                             ),
                           ),
                           Text(
-                            'Bienvenido a SmartPulse',
+                            'Usuario: @${widget.username}',
                             style: TextStyle(color: Colors.white70),
                           ),
                         ],
@@ -331,62 +693,181 @@ class _MainScreenState extends State<MainScreen> {
                 ),
               ),
             ),
+            
             SizedBox(height: 20),
+            
+            // Estado Bluetooth
             Card(
+              color: isBluetoothConnected
+                  ? Color(0xFF4CAF50).withOpacity(0.1)
+                  : Colors.grey[100],
+              child: InkWell(
+                onTap: _toggleBluetooth,
+                child: Padding(
+                  padding: EdgeInsets.all(20),
+                  child: Row(
+                    children: [
+                      AnimatedBuilder(
+                        animation: _pulseController,
+                        builder: (context, child) {
+                          return Icon(
+                            isBluetoothConnected
+                                ? Icons.bluetooth_connected
+                                : Icons.bluetooth_disabled,
+                            color: isBluetoothConnected
+                                ? Color(0xFF2E7D32)
+                                : Colors.grey,
+                            size: 40 + (_pulseController.value * 10),
+                          );
+                        },
+                      ),
+                      SizedBox(width: 16),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              isBluetoothConnected
+                                  ? 'ESP32 Conectado'
+                                  : 'ESP32 Desconectado',
+                              style: TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            Text(
+                              isBluetoothConnected
+                                  ? 'Dispositivo listo'
+                                  : 'Toca para conectar',
+                              style: TextStyle(color: Colors.grey[600]),
+                            ),
+                          ],
+                        ),
+                      ),
+                      Icon(
+                        isBluetoothConnected
+                            ? Icons.check_circle
+                            : Icons.error_outline,
+                        color: isBluetoothConnected
+                            ? Color(0xFF4CAF50)
+                            : Colors.grey,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+            
+            SizedBox(height: 20),
+            
+            // Detección de Voz
+            Card(
+              color: isListening
+                  ? Color(0xFF2E7D32).withOpacity(0.1)
+                  : Colors.white,
               child: Padding(
                 padding: EdgeInsets.all(20),
                 child: Column(
                   children: [
-                    Icon(
-                      Icons.info_outline,
-                      size: 48,
-                      color: Color(0xFF2E7D32),
+                    AnimatedBuilder(
+                      animation: _waveController,
+                      builder: (context, child) {
+                        return Icon(
+                          isListening ? Icons.mic : Icons.mic_off,
+                          size: 60 + (_waveController.value * 20),
+                          color: isListening
+                              ? Color(0xFF2E7D32)
+                              : Colors.grey,
+                        );
+                      },
                     ),
                     SizedBox(height: 16),
                     Text(
-                      'Sistema de Alertas',
+                      isListening
+                          ? 'ESCUCHANDO...'
+                          : 'Micrófono apagado',
                       style: TextStyle(
                         fontSize: 20,
                         fontWeight: FontWeight.bold,
+                        color: isListening
+                            ? Color(0xFF2E7D32)
+                            : Colors.grey,
                       ),
                     ),
                     SizedBox(height: 8),
                     Text(
-                      'Presiona el botón para enviar una alerta de prueba',
-                      textAlign: TextAlign.center,
+                      isListening
+                          ? 'Esperando: "${widget.userName}"'
+                          : 'Presiona para activar',
                       style: TextStyle(color: Colors.grey[600]),
+                    ),
+                    if (detectedText.isNotEmpty) ...[
+                      SizedBox(height: 16),
+                      Container(
+                        padding: EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: Color(0xFF4CAF50).withOpacity(0.2),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Text(
+                          '🎤 "$detectedText"',
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontStyle: FontStyle.italic,
+                          ),
+                        ),
+                      ),
+                    ],
+                    SizedBox(height: 16),
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton.icon(
+                        onPressed: _toggleListening,
+                        icon: Icon(isListening ? Icons.stop : Icons.mic),
+                        label: Text(
+                          isListening ? 'DETENER' : 'INICIAR ESCUCHA',
+                        ),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: isListening
+                              ? Colors.orange
+                              : Color(0xFF2E7D32),
+                        ),
+                      ),
                     ),
                   ],
                 ),
               ),
             ),
+            
             SizedBox(height: 20),
+            
+            // Botón Manual de Alerta
             Card(
               color: Color(0xFF2E7D32),
               elevation: 8,
               child: InkWell(
                 onTap: _sendAlert,
                 child: Padding(
-                  padding: EdgeInsets.all(40),
+                  padding: EdgeInsets.all(30),
                   child: Column(
                     children: [
                       Icon(
                         Icons.notifications_active,
-                        size: 80,
+                        size: 60,
                         color: Colors.white,
                       ),
-                      SizedBox(height: 16),
+                      SizedBox(height: 12),
                       Text(
-                        'ENVIAR ALERTA',
+                        'ENVIAR ALERTA MANUAL',
                         style: TextStyle(
-                          fontSize: 24,
+                          fontSize: 20,
                           fontWeight: FontWeight.bold,
                           color: Colors.white,
                         ),
                       ),
-                      SizedBox(height: 8),
+                      SizedBox(height: 4),
                       Text(
-                        'Toca para simular envío',
+                        'Activa LED + Motor',
                         style: TextStyle(
                           color: Colors.white70,
                           fontSize: 14,
@@ -397,7 +878,10 @@ class _MainScreenState extends State<MainScreen> {
                 ),
               ),
             ),
+            
             SizedBox(height: 20),
+            
+            // Historial
             Card(
               child: Padding(
                 padding: EdgeInsets.all(16),
@@ -415,65 +899,82 @@ class _MainScreenState extends State<MainScreen> {
                             fontWeight: FontWeight.bold,
                           ),
                         ),
+                        Spacer(),
+                        Container(
+                          padding:
+                              EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                          decoration: BoxDecoration(
+                            color: Color(0xFF2E7D32),
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                          child: Text(
+                            '$alertCount',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
                       ],
                     ),
                     SizedBox(height: 12),
                     if (alertHistory.isEmpty)
                       Padding(
                         padding: EdgeInsets.symmetric(vertical: 20),
-                        child: Text(
-                          'Sin alertas aún',
-                          style: TextStyle(
-                            fontSize: 16,
-                            color: Colors.grey,
-                            fontStyle: FontStyle.italic,
+                        child: Center(
+                          child: Text(
+                            'Sin alertas aún',
+                            style: TextStyle(
+                              fontSize: 16,
+                              color: Colors.grey,
+                              fontStyle: FontStyle.italic,
+                            ),
                           ),
-                          textAlign: TextAlign.center,
                         ),
                       )
                     else
-                      ...alertHistory.take(10).map((alert) => Padding(
-                            padding: EdgeInsets.symmetric(vertical: 8),
-                            child: Row(
-                              children: [
-                                Icon(Icons.check_circle,
-                                    color: Color(0xFF4CAF50), size: 20),
-                                SizedBox(width: 12),
-                                Expanded(
-                                  child: Text(
-                                    alert,
-                                    style: TextStyle(fontSize: 14),
-                                  ),
-                                ),
-                              ],
+                      ...alertHistory.take(10).map((alert) {
+                        return Container(
+                          margin: EdgeInsets.only(bottom: 8),
+                          padding: EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: Colors.green[50],
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(
+                              color: Color(0xFF4CAF50),
+                              width: 1,
                             ),
-                          )),
-                  ],
-                ),
-              ),
-            ),
-            SizedBox(height: 20),
-            Card(
-              color: Colors.blue[50],
-              child: Padding(
-                padding: EdgeInsets.all(16),
-                child: Column(
-                  children: [
-                    Icon(Icons.bluetooth_disabled, color: Colors.blue),
-                    SizedBox(height: 8),
-                    Text(
-                      'Versión sin Bluetooth',
-                      style: TextStyle(
-                        fontWeight: FontWeight.bold,
-                        color: Colors.blue[900],
-                      ),
-                    ),
-                    SizedBox(height: 4),
-                    Text(
-                      'Esta versión funciona sin conexión BLE',
-                      style: TextStyle(fontSize: 12, color: Colors.blue[700]),
-                      textAlign: TextAlign.center,
-                    ),
+                          ),
+                          child: Row(
+                            children: [
+                              Icon(
+                                Icons.check_circle,
+                                color: Color(0xFF4CAF50),
+                                size: 20,
+                              ),
+                              SizedBox(width: 12),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      alert['text']!,
+                                      style: TextStyle(fontSize: 14),
+                                    ),
+                                    Text(
+                                      alert['time']!,
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        color: Colors.grey[600],
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                        );
+                      }).toList(),
                   ],
                 ),
               ),
