@@ -10,14 +10,8 @@ dependencies:
   flutter:
     sdk: flutter
   
-  # Bluetooth Low Energy (versión estable)
-  flutter_blue_plus: ^1.31.0
-  
   # Almacenamiento local
   shared_preferences: ^2.2.2
-  
-  # Permisos
-  permission_handler: ^11.3.0
   
   # Iconos Material
   cupertino_icons: ^1.0.2
@@ -29,6 +23,5 @@ dev_dependencies:
 flutter:
   uses-material-design: true
   
-  # Recursos de la app
   assets:
     - assets/images/logo.png
