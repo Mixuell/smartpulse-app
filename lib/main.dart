@@ -1,7 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:flutter_blue_plus/flutter_blue_plus.dart';
-import 'package:permission_handler/permission_handler.dart';
 
 void main() {
   runApp(SmartPulseApp());
@@ -41,10 +39,6 @@ class SmartPulseApp extends StatelessWidget {
     );
   }
 }
-
-// ============================================
-// PANTALLA 1: LOGIN
-// ============================================
 
 class LoginScreen extends StatefulWidget {
   @override
@@ -253,10 +247,6 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 }
 
-// ============================================
-// PANTALLA 2: PRINCIPAL
-// ============================================
-
 class MainScreen extends StatefulWidget {
   final String userName;
 
@@ -267,93 +257,19 @@ class MainScreen extends StatefulWidget {
 }
 
 class _MainScreenState extends State<MainScreen> {
-  bool isConnected = false;
   List<String> alertHistory = [];
-  BluetoothDevice? smartPulseDevice;
-  BluetoothCharacteristic? commandChar;
+  int alertCount = 0;
 
-  @override
-  void initState() {
-    super.initState();
-    _requestPermissions();
-  }
+  void _sendAlert() {
+    setState(() {
+      alertCount++;
+      String time = "${DateTime.now().hour}:${DateTime.now().minute.toString().padLeft(2, '0')}";
+      alertHistory.insert(0, "$time - Alerta #$alertCount enviada");
+    });
 
-  Future<void> _requestPermissions() async {
-    await Permission.bluetoothScan.request();
-    await Permission.bluetoothConnect.request();
-    await Permission.location.request();
-  }
-
-  Future<void> _connectBluetooth() async {
-    try {
-      FlutterBluePlus.startScan(timeout: Duration(seconds: 5));
-
-      FlutterBluePlus.scanResults.listen((results) async {
-        for (ScanResult r in results) {
-          if (r.device.platformName.contains("SmartPulse") ||
-              r.device.platformName.contains("ESP32")) {
-            smartPulseDevice = r.device;
-            FlutterBluePlus.stopScan();
-            await _connectToDevice();
-            break;
-          }
-        }
-      });
-    } catch (e) {
-      _showMessage("Error al buscar dispositivos: $e");
-    }
-  }
-
-  Future<void> _connectToDevice() async {
-    if (smartPulseDevice == null) return;
-
-    try {
-      await smartPulseDevice!.connect();
-      List<BluetoothService> services =
-          await smartPulseDevice!.discoverServices();
-
-      for (BluetoothService service in services) {
-        for (BluetoothCharacteristic c in service.characteristics) {
-          if (c.properties.write) {
-            commandChar = c;
-            setState(() {
-              isConnected = true;
-            });
-            _showMessage("Conectado a SmartPulse");
-            return;
-          }
-        }
-      }
-    } catch (e) {
-      _showMessage("Error al conectar: $e");
-    }
-  }
-
-  Future<void> _sendAlert() async {
-    if (!isConnected || commandChar == null) {
-      _showMessage("Por favor conecta el dispositivo primero");
-      return;
-    }
-
-    try {
-      await commandChar!.write("VIBRAR".codeUnits);
-
-      String time =
-          "${DateTime.now().hour}:${DateTime.now().minute.toString().padLeft(2, '0')}";
-      setState(() {
-        alertHistory.insert(0, "$time - Alerta enviada");
-      });
-
-      _showMessage("¡Alerta enviada al ESP32!");
-    } catch (e) {
-      _showMessage("Error al enviar alerta: $e");
-    }
-  }
-
-  void _showMessage(String message) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(message),
+        content: Text('¡Alerta enviada correctamente!'),
         backgroundColor: Color(0xFF2E7D32),
         duration: Duration(seconds: 2),
       ),
@@ -361,7 +277,6 @@ class _MainScreenState extends State<MainScreen> {
   }
 
   void _logout() {
-    smartPulseDevice?.disconnect();
     Navigator.pushReplacement(
       context,
       MaterialPageRoute(builder: (context) => LoginScreen()),
@@ -418,27 +333,31 @@ class _MainScreenState extends State<MainScreen> {
             ),
             SizedBox(height: 20),
             Card(
-              child: ListTile(
-                leading: Icon(
-                  isConnected
-                      ? Icons.bluetooth_connected
-                      : Icons.bluetooth_disabled,
-                  color: isConnected ? Color(0xFF2E7D32) : Color(0xFFD32F2F),
-                  size: 40,
-                ),
-                title: Text(
-                  isConnected ? 'Conectado a SmartPulse' : 'Desconectado',
-                  style: TextStyle(fontWeight: FontWeight.bold),
-                ),
-                subtitle: Text(
-                  isConnected ? 'Listo para alertas' : 'Presiona para conectar',
-                ),
-                trailing: isConnected
-                    ? Icon(Icons.check_circle, color: Color(0xFF2E7D32))
-                    : ElevatedButton(
-                        onPressed: _connectBluetooth,
-                        child: Text('Conectar'),
+              child: Padding(
+                padding: EdgeInsets.all(20),
+                child: Column(
+                  children: [
+                    Icon(
+                      Icons.info_outline,
+                      size: 48,
+                      color: Color(0xFF2E7D32),
+                    ),
+                    SizedBox(height: 16),
+                    Text(
+                      'Sistema de Alertas',
+                      style: TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
                       ),
+                    ),
+                    SizedBox(height: 8),
+                    Text(
+                      'Presiona el botón para enviar una alerta de prueba',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(color: Colors.grey[600]),
+                    ),
+                  ],
+                ),
               ),
             ),
             SizedBox(height: 20),
@@ -467,7 +386,7 @@ class _MainScreenState extends State<MainScreen> {
                       ),
                       SizedBox(height: 8),
                       Text(
-                        'Presiona para activar vibración',
+                        'Toca para simular envío',
                         style: TextStyle(
                           color: Colors.white70,
                           fontSize: 14,
@@ -500,26 +419,61 @@ class _MainScreenState extends State<MainScreen> {
                     ),
                     SizedBox(height: 12),
                     if (alertHistory.isEmpty)
-                      Text(
-                        'Sin alertas aún',
-                        style: TextStyle(
-                          fontSize: 16,
-                          color: Colors.grey,
-                          fontStyle: FontStyle.italic,
+                      Padding(
+                        padding: EdgeInsets.symmetric(vertical: 20),
+                        child: Text(
+                          'Sin alertas aún',
+                          style: TextStyle(
+                            fontSize: 16,
+                            color: Colors.grey,
+                            fontStyle: FontStyle.italic,
+                          ),
+                          textAlign: TextAlign.center,
                         ),
                       )
                     else
-                      ...alertHistory.take(5).map((alert) => Padding(
-                            padding: EdgeInsets.symmetric(vertical: 4),
+                      ...alertHistory.take(10).map((alert) => Padding(
+                            padding: EdgeInsets.symmetric(vertical: 8),
                             child: Row(
                               children: [
                                 Icon(Icons.check_circle,
-                                    color: Color(0xFF4CAF50), size: 16),
-                                SizedBox(width: 8),
-                                Text(alert, style: TextStyle(fontSize: 14)),
+                                    color: Color(0xFF4CAF50), size: 20),
+                                SizedBox(width: 12),
+                                Expanded(
+                                  child: Text(
+                                    alert,
+                                    style: TextStyle(fontSize: 14),
+                                  ),
+                                ),
                               ],
                             ),
                           )),
+                  ],
+                ),
+              ),
+            ),
+            SizedBox(height: 20),
+            Card(
+              color: Colors.blue[50],
+              child: Padding(
+                padding: EdgeInsets.all(16),
+                child: Column(
+                  children: [
+                    Icon(Icons.bluetooth_disabled, color: Colors.blue),
+                    SizedBox(height: 8),
+                    Text(
+                      'Versión sin Bluetooth',
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        color: Colors.blue[900],
+                      ),
+                    ),
+                    SizedBox(height: 4),
+                    Text(
+                      'Esta versión funciona sin conexión BLE',
+                      style: TextStyle(fontSize: 12, color: Colors.blue[700]),
+                      textAlign: TextAlign.center,
+                    ),
                   ],
                 ),
               ),
@@ -528,11 +482,5 @@ class _MainScreenState extends State<MainScreen> {
         ),
       ),
     );
-  }
-
-  @override
-  void dispose() {
-    smartPulseDevice?.disconnect();
-    super.dispose();
   }
 }
